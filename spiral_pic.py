@@ -56,16 +56,15 @@ def main():
     #im = imread('gradient.png')
     spiral(points, 0.5, 1.0, im)
     
-    print(points)
-
     dwg = svg.Drawing('test.svg')
     s = svg.shapes.Polyline(points)
     s.fill('none')
     dwg.add(s)
     s.stroke('black', width=0.2)
     #dwg.viewbox(minx=0, miny=0, 
-    #dwg.viewbox(minx=-300, miny=-300, 
-    #            width=300+(radius+spacing)*(x+1), height=300+(radius+spacing)*(y+1))
+    r = np.min(im.shape)/2
+    dwg.viewbox(minx=-r, miny=-r, 
+                width=r*2, height=r*2)
 
     dwg.save()
 if __name__ == '__main__': main()
