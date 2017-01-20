@@ -103,7 +103,8 @@ def random_lines(nlines, length, image):
     lines = []
     i = 0
     while i < nlines:
-        points = random_line(length*(1-i/nlines), *image.shape)
+        points = random_line(length, *image.shape)
+        #points = random_line(length*(1-i/nlines), *image.shape)
         score = sum(image[i,j] for i,j in points) / len(points)
         if score <= threshold:
             lines.append((points[0], points[-1]))
@@ -115,12 +116,33 @@ def random_lines(nlines, length, image):
             threshold = np.sum(image) / imsize
     return lines
 
-def write_random_lines(lines, filename, w,h):
+def write_random_lines(lines, filename, w,h, color='black', opacity=1.0):
     dwg = svg.Drawing(filename)
     for line in lines:
         svgline = svg.shapes.Line(*line)
         svgline.fill('none')
-        svgline.stroke('black', width=0.5)
+        svgline.stroke(color, width=0.5)
+        dwg.add(svgline)
+
+    dwg.viewbox(minx=0, miny=0, width=w, height=h)
+    dwg.save()
+
+def write_random_lines_rgb(reds, greens, blues, filename, w,h, opacity=1.0):
+    dwg = svg.Drawing(filename)
+    for red,green,blue in zip(reds, greens, blues):
+        svgline = svg.shapes.Line(*red)
+        svgline.fill('none')
+        svgline.stroke('red', width=0.5)
+        dwg.add(svgline)
+
+        svgline = svg.shapes.Line(*green)
+        svgline.fill('none')
+        svgline.stroke('green', width=0.5, opacity=opacity)
+        dwg.add(svgline)
+
+        svgline = svg.shapes.Line(*blue)
+        svgline.fill('none')
+        svgline.stroke('blue', width=0.5)
         dwg.add(svgline)
 
     dwg.viewbox(minx=0, miny=0, width=w, height=h)
@@ -135,26 +157,61 @@ def circle_image(x,y,r,image):
                 image[i,j] = 1
     return image
 
+def normalize_rgb(image):
+    r = np.sum(image[:,:,0])
+    g = np.sum(image[:,:,1])
+    b = np.sum(image[:,:,2])
+    rgb = r+g+b
+    print(r,g,b, rgb)
+
+    im2 = np.zeros(image.shape, dtype='float64')
+    np.copyto(im2, image, casting='unsafe')
+    im2[:,:,0] *= (rgb / 3.) / r
+    im2[:,:,1] *= (rgb / 3.) / g
+    im2[:,:,2] *= (rgb / 3.) / b
+    np.copyto(image, im2, casting='unsafe')
+
+    r = np.sum(image[:,:,0])
+    g = np.sum(image[:,:,1])
+    b = np.sum(image[:,:,2])
+    rgb = r+g+b
+    print(r,g,b, rgb)
+    
 def main():
     npoints = 500
     points = np.empty([npoints,2], dtype='float64')
 
     #im = imread('greyella_hi.png')
     #im = imread('greyella.png')
-    im = imread('greyella_square.png')
+    #im = imread('greyella_square.png')
+    im = imread('rgb_ella_square.png')
     #im = imread('gradient.png')
     #im = circle_image(20,20, 20, im)
     #im = np.zeros((200,200))
 
-    print("Read %s,%s pixels"%(*im.shape)
+    #print("Read %s pixels"%(im.shape))
 
     #spiral(points, 0.5, 1.0, im)
     #write_spiral(points, 'test.svg')
+    print(im.shape, im[0,0])
 
-    lines = random_lines(10000, 100,  im)
-    write_random_lines(lines, 'test.svg', *im.shape)
+    lines = random_lines(10000, 100,  im[:,:,0])
+    write_random_lines(lines, 'test.svg', im.shape[X], im.shape[Y])
     #im = Image.frombuffer('L', im.shape, im) # L = grey
+    #im = Image.frombuffer('RGB', im.shape[:2], im) # L = grey
     #im.save('test.png')
 
+    #normalize_rgb(im)
+#    r = np.sum(im[:,:,0])
+#    g = np.sum(im[:,:,1])
+#    b = np.sum(im[:,:,2])
+#    rgb = r+g+b
+#    nlines = 5000
+#    reds =   random_lines(nlines * r/(rgb/3), 100,  im[:,:,0].copy())
+#    greens = random_lines(nlines * g/(rgb/3), 100,  im[:,:,1].copy())
+#    blues =  random_lines(nlines * b/(rgb/3), 100,  im[:,:,2].copy())
+#    rgb = [len(reds), len(greens), len(blues)]
+#    print(rgb, sum(rgb))
+#    write_random_lines_rgb(reds, greens, blues, 'test.svg', im.shape[X], im.shape[Y], opacity=0.5)
     
 if __name__ == '__main__': main()
