@@ -4,6 +4,7 @@ from math import pi, sqrt, sin, cos
 import svgwrite as svg
 from random import random, choice
 from PIL import Image
+import argparse 
 
 X = 0
 Y = 1
@@ -32,7 +33,7 @@ def spiral(points, step_along_spiral, step_out_per_rot, image):
         y = r * np.sin(a) 
 
         if in_image(x,y, image):
-            scl = 1 - float(image[x + image.shape[0]/2,y + image.shape[1]/2]) / 256.
+            scl = 1 - float(image[int(x + image.shape[0]/2), int(y + image.shape[1]/2)]) / 256.
             #points[i][X] = (r + scl * np.sin(i * scl * pi/2)) * np.cos(a) 
             #points[i][Y] = (r + scl * np.sin(i * scl * pi/2)) * np.sin(a) 
             points[npoints][X] = (r + scl * step_out_per_rot * (0.5 - random())) * np.cos(a) 
@@ -48,16 +49,15 @@ def spiral(points, step_along_spiral, step_out_per_rot, image):
     points.resize((npoints, points.shape[1]), refcheck=False)
 
 
-def write_spiral(points, filename):
+def write_spiral(points, filename, radius):
     dwg = svg.Drawing(filename)
     s = svg.shapes.Polyline(points)
     s.fill('none')
     dwg.add(s)
     s.stroke('black', width=0.2)
     #dwg.viewbox(minx=0, miny=0, 
-    r = np.min(im.shape)/2
-    dwg.viewbox(minx=-r, miny=-r, 
-                width=r*2, height=r*2)
+    dwg.viewbox(minx=-radius, miny=-radius, 
+                width=radius*2, height=radius*2)
 
     dwg.save()
 
@@ -121,7 +121,7 @@ def write_random_lines(lines, filename, w,h, color='black', opacity=1.0):
     for line in lines:
         svgline = svg.shapes.Line(*line)
         svgline.fill('none')
-        svgline.stroke(color, width=0.5)
+        svgline.stroke(color, width=0.25)
         dwg.add(svgline)
 
     dwg.viewbox(minx=0, miny=0, width=w, height=h)
@@ -178,29 +178,28 @@ def normalize_rgb(image):
     print(r,g,b, rgb)
     
 def main():
-    npoints = 500
-    points = np.empty([npoints,2], dtype='float64')
 
-    #im = imread('greyella_hi.png')
-    #im = imread('greyella.png')
-    #im = imread('greyella_square.png')
-    im = imread('rgb_ella_square.png')
-    #im = imread('gradient.png')
-    #im = circle_image(20,20, 20, im)
-    #im = np.zeros((200,200))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--spiral', action='store_true', help='Generate a spiral')
+    parser.add_argument('-l', '--lines', action='store_true', help='Generate a line drawing')
+    parser.add_argument('-n', '--number', type=int, help='Number of points in the spiral (try 500) or lines in the line drawing (try 5000)')
+    parser.add_argument('-d', '--distance', type=float, help='The distance between points on the spiral (try 0.5) or the length each line (try 20)')
+    parser.add_argument('-o', '--output', help='Filename to write SVG output to')
+    parser.add_argument('filename', help='Input PNG filename')
 
-    #print("Read %s pixels"%(im.shape))
+    args = vars(parser.parse_args())
 
-    #spiral(points, 0.5, 1.0, im)
-    #write_spiral(points, 'test.svg')
-    print(im.shape, im[0,0])
-
-    lines = random_lines(10000, 100,  im[:,:,0])
-    write_random_lines(lines, 'test.svg', im.shape[X], im.shape[Y])
-    #im = Image.frombuffer('L', im.shape, im) # L = grey
-    #im = Image.frombuffer('RGB', im.shape[:2], im) # L = grey
-    #im.save('test.png')
-
+    image = imread(args['filename'])
+    #print(im.shape)
+    
+    if args['spiral']:
+        points = np.empty([args['number'],2], dtype='float64')
+        spiral(points, args['distance'], 1.0, image)
+        write_spiral(points, args['output'], np.min(image.shape)/2)
+    elif args['lines']:
+        lines = random_lines(args['number'], args['distance'],  image)
+        write_random_lines(lines, args['output'], image.shape[X], image.shape[Y])
+                
     #normalize_rgb(im)
 #    r = np.sum(im[:,:,0])
 #    g = np.sum(im[:,:,1])
