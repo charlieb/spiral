@@ -61,6 +61,29 @@ def write_spiral(points, filename, radius):
 
     dwg.save()
 
+def write_spiral_gcode(points, filename, scale, feedrate=500):
+    header = ['%',
+            'G21 (All units in mm)',
+            'G90 (All absolute moves)',
+            'G00 X0.0 Y 0.0 Z0.0',
+            ]
+    footer = ['G00 X0.0 Y 0.0 Z0.0',
+            'M2',
+            '%',
+            ]
+
+    body = []
+    body.append('G0Z1')
+    for pt in points:
+        xy = 'X' + format((pt[X]) * scale, '.4f') + \
+             'Y' + format((pt[Y]) * scale, '.4f') + \
+             'F' + str(feedrate)
+        body.append('G1' + xy)
+
+    with open(filename, 'w') as f:
+        f.write('\n'.join(header + body + footer))
+
+
 def roulette(values, total):
     sel = random() * total
     cur = 0
@@ -116,16 +139,63 @@ def random_lines(nlines, length, image):
             threshold = np.sum(image) / imsize
     return lines
 
+def sort_random_lines(lines):
+    '''Try to minimize the distance between successive lines'''
+    used = [False] * lines.shape[0]
+    sorted_lines = lines.copy()
+    starts = lines[:,0,:]
+
+    kd = KDTree(starts)
+
+    line_idx = 0
+    while line_idx < lines.shape[0]:
+        p = sorted_lines[line_idx, 1, :]
+        d,i = kd.query(p)
+        if used[i]:
+            candidates = kd.query_ball_point(p,d)
+            while all(used[j] for j in candidates):
+                d += 5 #mm
+                candidates = kd.query_ball_point(p,d)
+            i = candidates[[used[j] for j in candidates].index(True)]
+        used[i] = True
+        line_idx += 1
+        sorted_lines[line_idx] = lines[i]
+
+        
+
 def write_random_lines(lines, filename, w,h, color='black', opacity=1.0):
     dwg = svg.Drawing(filename)
     for line in lines:
         svgline = svg.shapes.Line(*line)
         svgline.fill('none')
-        svgline.stroke(color, width=0.25)
+        svgline.stroke(color, width=1.00)
         dwg.add(svgline)
 
     dwg.viewbox(minx=0, miny=0, width=w, height=h)
     dwg.save()
+
+def write_random_lines_gcode(lines, filename, scale, feedrate=500):
+    header = ['%',
+            'G21 (All units in mm)',
+            'G90 (All absolute moves)',
+            ]
+    footer = ['G00 X0.0 Y 0.0 Z0.0',
+            'M2',
+            '%',
+            ]
+
+    body = []
+    for line in lines:
+        xy1 = 'X' + format((line[0][0]) * scale, '.4f') + 'Y' + format((line[0][1]) * scale, '.4f') + 'F' + str(feedrate)
+        xy2 = 'X' + format((line[1][0]) * scale, '.4f') + 'Y' + format((line[1][1]) * scale, '.4f') + 'F' + str(feedrate)
+
+        body.append('G1Z0')
+        body.append('G0' + xy1)
+        body.append('G0Z1')
+        body.append('G1' + xy2)
+
+    with open(filename, 'w') as f:
+        f.write('\n'.join(header + body + footer))
 
 def write_random_lines_rgb(reds, greens, blues, filename, w,h, opacity=1.0):
     dwg = svg.Drawing(filename)
@@ -182,9 +252,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--spiral', action='store_true', help='Generate a spiral')
     parser.add_argument('-l', '--lines', action='store_true', help='Generate a line drawing')
-    parser.add_argument('-n', '--number', type=int, help='Number of points in the spiral (try 500) or lines in the line drawing (try 5000)')
+    parser.add_argument('-n', '--number', type=int, help='Number of points in the spiral (try 100000) or lines in the line drawing (try 5000)')
     parser.add_argument('-d', '--distance', type=float, help='The distance between points on the spiral (try 0.5) or the length each line (try 20)')
-    parser.add_argument('-o', '--output', help='Filename to write SVG output to')
+    parser.add_argument('-o', '--output', help='Filename to write SVG or gcode output to')
+    parser.add_argument('-g', '--gcode', action='store_true', help='Output a gcode file insead of SVG')
+    parser.add_argument('-c', '--scale', type=float, default=1.0, help='Scale gcode - at 1 pixel = 1mm at a scale of 1.0')
     parser.add_argument('filename', help='Input PNG filename')
 
     args = vars(parser.parse_args())
@@ -194,11 +266,17 @@ def main():
     
     if args['spiral']:
         points = np.empty([args['number'],2], dtype='float64')
-        spiral(points, args['distance'], 1.0, image)
-        write_spiral(points, args['output'], np.min(image.shape)/2)
+        spiral(points, args['distance'], 2.0, image)
+        if args['gcode']:
+            write_spiral_gcode(points, args['output'], args['scale'])
+        else:
+            write_spiral(points, args['output'], np.min(image.shape)/2)
     elif args['lines']:
         lines = random_lines(args['number'], args['distance'],  image)
-        write_random_lines(lines, args['output'], image.shape[X], image.shape[Y])
+        if args['gcode']:
+            write_random_lines_gcode(lines, args['output'], args['scale'])
+        else:
+            write_random_lines(lines, args['output'], image.shape[X], image.shape[Y])
                 
     #normalize_rgb(im)
 #    r = np.sum(im[:,:,0])
